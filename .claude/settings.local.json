@@ -30,7 +30,11 @@
       "Bash(node -e \"\nasync function test\\(\\) {\n  const emb = new Array\\(1024\\).fill\\(0.01\\);\n  const res = await fetch\\('http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/finance-docs/query', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify\\({ query_embeddings: [emb], n_results: 1, include: ['documents', 'metadatas'] }\\)\n  }\\);\n  const data = await res.json\\(\\);\n  console.log\\('Keys:', Object.keys\\(data\\)\\);\n  console.log\\('JSON:', JSON.stringify\\(data\\).substring\\(0, 500\\)\\);\n}\ntest\\(\\);\n\" 2>&1)",
       "Bash(node -e \"\nasync function test\\(\\) {\n  // First get collection ID\n  const listRes = await fetch\\('http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections'\\);\n  const cols = await listRes.json\\(\\);\n  const col = cols.find\\(c => c.name === 'finance-docs'\\);\n  console.log\\('Collection ID:', col.id\\);\n  \n  const emb = new Array\\(1024\\).fill\\(0.01\\);\n  const res = await fetch\\('http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/' + col.id + '/query', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify\\({ query_embeddings: [emb], n_results: 1, include: ['documents', 'metadatas'] }\\)\n  }\\);\n  const data = await res.json\\(\\);\n  console.log\\('Keys:', Object.keys\\(data\\)\\);\n  console.log\\('JSON:', JSON.stringify\\(data\\).substring\\(0, 500\\)\\);\n}\ntest\\(\\);\n\" 2>&1)",
       "Bash(npx tsc --noEmit --project tsconfig.json 2>&1 | grep -v '.next/')",
-      "Bash(curl -s http://localhost:8100/api/v2/tenants/default_tenant/databases/default_database/collections/2d1da75c-a808-4eb3-8fbb-7b08593f6be7/count 2>&1)"
+      "Bash(curl -s http://localhost:8100/api/v2/tenants/default_tenant/databases/default_database/collections/2d1da75c-a808-4eb3-8fbb-7b08593f6be7/count 2>&1)",
+      "mcp__ide__getDiagnostics",
+      "Bash(npx tsc --noEmit --pretty 2>&1 | head -50)",
+      "Bash(npx tsc --noEmit --pretty 2>&1 | head -30)",
+      "Bash(npx tsc --noEmit --pretty 2>&1 | head -20)"
     ]
   }
 }

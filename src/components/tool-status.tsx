@@ -3,6 +3,7 @@
 const TOOL_LABELS: Record<string, string> = {
   searchKnowledgeBase: "搜索知识库",
   webSearch: "联网搜索",
+  bilibiliInvestmentDigest: "获取B站视频内容",
 };
 
 interface ToolStatusProps {

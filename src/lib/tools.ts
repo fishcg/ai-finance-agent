@@ -2,6 +2,15 @@ import { tool } from "ai";
 import { z } from "zod";
 import { getEmbedding } from "@/lib/embeddings";
 import { queryDocuments } from "@/lib/chroma";
+import {
+  readSessdata,
+  getBuvid,
+  getWbiKeys,
+  getUpRecentVideos,
+  getVideoInfo,
+  getAiSummary,
+  getSubtitles,
+} from "@/lib/bilibili";
 
 export const tools = {
   searchKnowledgeBase: tool({
@@ -76,6 +85,119 @@ export const tools = {
       const content =
         data.choices?.[0]?.message?.content || "未获取到搜索结果";
       return { found: true, content };
+    },
+  }),
+
+  bilibiliInvestmentDigest: tool({
+    description:
+      '获取 B 站 UP 主最近发布视频的 AI 总结和字幕内容，用于分析投资建议。用户提到"投资总结"、"视频分析"、"CLS同学"、"B站UP主"等关键词时调用。',
+    inputSchema: z.object({
+      mid: z
+        .number()
+        .optional()
+        .default(1575688490)
+        .describe("UP 主的 mid，默认 1575688490（CLS同学）"),
+      days: z
+        .number()
+        .optional()
+        .default(7)
+        .describe("获取最近几天的视频，默认 7"),
+    }),
+    execute: async ({ mid, days }) => {
+      console.log("[tool:bilibiliInvestmentDigest] mid:", mid, "days:", days);
+      try {
+        const sessdata = await readSessdata();
+        const { buvid3, buvid4 } = await getBuvid();
+        const cookie = `buvid3=${buvid3}; buvid4=${buvid4}; SESSDATA=${sessdata}`;
+        const { imgKey, subKey } = await getWbiKeys(cookie);
+
+        const videos = await getUpRecentVideos(
+          mid,
+          days,
+          cookie,
+          imgKey,
+          subKey
+        );
+        console.log(
+          "[tool:bilibiliInvestmentDigest] found videos:",
+          videos.length
+        );
+
+        if (videos.length === 0) {
+          return {
+            found: false,
+            content: `该 UP 主最近 ${days} 天没有发布视频`,
+          };
+        }
+
+        const results: string[] = [];
+        for (const v of videos) {
+          const date = new Date(v.created * 1000).toLocaleDateString("zh-CN");
+          let videoContent = `## ${v.title}\n发布日期: ${date}\nBV号: ${v.bvid}\n`;
+
+          try {
+            const info = await getVideoInfo(v.bvid, cookie);
+            const aiResult = await getAiSummary(
+              v.bvid,
+              info.cid,
+              info.upMid,
+              cookie,
+              imgKey,
+              subKey
+            );
+
+            if (aiResult?.summary) {
+              videoContent += `\nAI 摘要:\n${aiResult.summary}\n`;
+              if (aiResult.outline?.length) {
+                videoContent += "\n分段提纲:\n";
+                for (const seg of aiResult.outline) {
+                  const m = Math.floor(seg.timestamp / 60);
+                  const s = seg.timestamp % 60;
+                  videoContent += `[${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}] ${seg.title}\n`;
+                  for (const pt of seg.part_outline || []) {
+                    const pm = Math.floor(pt.timestamp / 60);
+                    const ps = pt.timestamp % 60;
+                    videoContent += `  [${String(pm).padStart(2, "0")}:${String(ps).padStart(2, "0")}] ${pt.content}\n`;
+                  }
+                }
+              }
+            }
+
+            // Always try subtitles for fuller content
+            const subtitleText = await getSubtitles(v.bvid, info.cid, cookie);
+            if (subtitleText) {
+              videoContent += `\n字幕内容:\n${subtitleText}\n`;
+            } else if (!aiResult?.summary) {
+              videoContent += "\n（该视频无可用 AI 总结和字幕）\n";
+            }
+          } catch (e: any) {
+            console.error(
+              `[tool:bilibiliInvestmentDigest] error processing ${v.bvid}:`,
+              e.message
+            );
+            videoContent += `\n（获取内容失败: ${e.message}）\n`;
+          }
+
+          results.push(videoContent);
+        }
+
+        const content = results.join("\n---\n\n");
+        console.log(
+          "[tool:bilibiliInvestmentDigest] total content length:",
+          content.length
+        );
+        return { found: true, content };
+      } catch (e: any) {
+        console.error("[tool:bilibiliInvestmentDigest] error:", e.message);
+        if (e.message.includes("SESSDATA")) {
+          return {
+            found: false,
+            content:
+              "未找到 B 站凭据。请在 ~/.config/bilibili-cookie 中配置 BILIBILI_SESSDATA",
+          };
+        }
+        return { found: false, content: `获取 B 站视频失败: ${e.message}` };
+      }
     },
   }),
 };

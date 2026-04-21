@@ -9,9 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.53",
+    "@ai-sdk/react": "^3.0.170",
+    "@tailwindcss/typography": "^0.5.19",
+    "ai": "^6.0.168",
+    "chromadb": "^3.4.3",
     "next": "16.2.4",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

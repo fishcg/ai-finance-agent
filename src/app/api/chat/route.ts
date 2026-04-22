@@ -58,7 +58,7 @@ export async function POST(req: Request) {
   const modelMessages = await convertToModelMessages(messages);
 
   const result = streamText({
-    model: dashscope.chat("qwen-plus"),
+    model: dashscope.chat(process.env.CHAT_MODEL || "qwen-plus"),
     system: AGENT_SYSTEM_PROMPT,
     messages: modelMessages,
     tools,

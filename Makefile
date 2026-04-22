@@ -4,7 +4,7 @@ PORT := $(or $(shell grep '^PORT=' .env.local 2>/dev/null | cut -d= -f2),3000)
 # 从 .env.local 读取环境变量传入容器
 ENV_FILE := .env.local
 
-.PHONY: dev build start docker-build docker-run docker-stop docker-deploy clean
+.PHONY: dev build start ingest docker-build docker-run docker-stop docker-deploy clean
 
 # 本地开发
 dev:
@@ -17,6 +17,10 @@ build:
 # 本地启动（需先 build）
 start:
 	PORT=$(PORT) npm run start
+
+# 导入文档到向量库
+ingest:
+	npm run ingest
 
 # Docker 构建镜像
 docker-build:

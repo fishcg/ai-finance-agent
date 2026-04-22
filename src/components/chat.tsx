@@ -26,7 +26,7 @@ export function Chat() {
   return (
     <div className="flex flex-col h-screen w-full max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto">
       <header className="px-4 py-3 md:px-8 md:py-4 border-b">
-        <h1 className="text-xl font-semibold">理财 Agent</h1>
+        <h1 className="text-xl font-semibold">理财王中王</h1>
         <p className="text-sm text-gray-500">
           可搜索知识库、联网查询的智能理财助手
         </p>
@@ -35,7 +35,7 @@ export function Chat() {
       <div className="flex-1 overflow-y-auto px-4 py-4 md:px-8 md:py-6 space-y-4">
         {messages.length === 0 && (
           <div className="text-center text-gray-400 mt-20">
-            <p className="text-lg">👋 你好！我是理财 Agent</p>
+            <p className="text-lg">👋 你好！我是理财王中王</p>
             <p className="text-sm mt-2">
               我可以搜索知识库、联网查询最新资讯来回答你的理财问题
             </p>
@@ -67,12 +67,18 @@ export function Chat() {
                   );
                 }
                 if (part.type.startsWith("tool-")) {
+                  const toolPart = part as {
+                    state: string;
+                    input?: { query?: string };
+                    output?: { found?: boolean; content?: string };
+                  };
                   return (
                     <ToolStatus
                       key={`${m.id}-tool-${i}`}
                       toolName={part.type.replace("tool-", "")}
-                      state={(part as { state: string }).state}
-                      input={(part as { input?: { query?: string } }).input}
+                      state={toolPart.state}
+                      input={toolPart.input}
+                      output={toolPart.output}
                     />
                   );
                 }

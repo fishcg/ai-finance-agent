@@ -42,13 +42,22 @@ async function curlGetJSON(
 }
 
 export async function readSessdata(): Promise<string> {
-  const cookiePath = path.join(homedir(), ".config", "bilibili-cookie");
-  const content = await readFile(cookiePath, "utf-8");
-  for (const line of content.split("\n")) {
-    const m = line.trim().match(/BILIBILI_SESSDATA=['"']?([^'"\\n]+)/);
-    if (m) return m[1];
+  // 优先从环境变量读取
+  if (process.env.BILIBILI_SESSDATA) {
+    return process.env.BILIBILI_SESSDATA;
   }
-  throw new Error("SESSDATA not found in ~/.config/bilibili-cookie");
+  // fallback 到配置文件
+  const cookiePath = path.join(homedir(), ".config", "bilibili-cookie");
+  try {
+    const content = await readFile(cookiePath, "utf-8");
+    for (const line of content.split("\n")) {
+      const m = line.trim().match(/BILIBILI_SESSDATA=['"']?([^'"\\n]+)/);
+      if (m) return m[1];
+    }
+  } catch {}
+  throw new Error(
+    "BILIBILI_SESSDATA 未配置。请在 .env.local 中设置 BILIBILI_SESSDATA，或在 ~/.config/bilibili-cookie 中配置"
+  );
 }
 
 export async function getBuvid(): Promise<{ buvid3: string; buvid4: string }> {

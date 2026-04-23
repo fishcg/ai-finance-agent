@@ -28,7 +28,7 @@ export const tools = {
 
       const docs =
         results.documents?.[0]
-          ?.map((doc, i) => {
+          ?.map((doc: string | null, i: number) => {
             const source =
               results.metadatas?.[0]?.[i]?.source || "未知来源";
             return `[来源: ${source}]\n${doc}`;

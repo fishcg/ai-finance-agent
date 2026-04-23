@@ -117,42 +117,63 @@ export const tools = {
 
       const results: string[] = [];
 
+      const fetchSina = async (sinaCode: string) => {
+        const { stdout } = await execFileAsync("curl", [
+          "-s",
+          "-H", "Referer: https://finance.sina.com.cn",
+          "-H", "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          `https://hq.sinajs.cn/list=${sinaCode}`,
+        ]);
+        // GBK decode
+        try {
+          const { exec } = await import("child_process");
+          return await new Promise<string>((resolve) => {
+            const proc = exec("iconv -f GBK -t UTF-8", (err, out) => {
+              resolve(err ? stdout : out);
+            });
+            proc.stdin?.write(Buffer.from(stdout, "latin1"));
+            proc.stdin?.end();
+          });
+        } catch {
+          return stdout;
+        }
+      };
+
+      const parseQuote = (text: string) => {
+        const match = text.match(/"(.+)"/);
+        return match?.[1] || "";
+      };
+
       for (const { code, market } of symbols) {
         try {
-          const sinaCode = market === "fund" ? `f_${code}` : `${market}${code}`;
-          const { stdout } = await execFileAsync("curl", [
-            "-s",
-            "-H", "Referer: https://finance.sina.com.cn",
-            "-H", "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            `https://hq.sinajs.cn/list=${sinaCode}`,
-          ]);
+          // Build candidate list: try user-specified market first, then fallback
+          const candidates =
+            market === "fund"
+              ? [`f_${code}`, `sh${code}`, `sz${code}`]
+              : market === "sh"
+                ? [`sh${code}`, `sz${code}`, `f_${code}`]
+                : [`sz${code}`, `sh${code}`, `f_${code}`];
 
-          const decoded = Buffer.from(stdout, "latin1").toString("utf-8");
-          // Try GBK decode via iconv
-          let text = decoded;
-          try {
-            const { exec } = await import("child_process");
-            const iconvResult = await new Promise<string>((resolve) => {
-              const proc = exec("iconv -f GBK -t UTF-8", (err, out) => {
-                resolve(err ? decoded : out);
-              });
-              proc.stdin?.write(Buffer.from(stdout, "latin1"));
-              proc.stdin?.end();
-            });
-            text = iconvResult;
-          } catch {
-            // iconv not available, use raw
+          let text = "";
+          let actualMarket = market;
+          for (const candidate of candidates) {
+            const raw = await fetchSina(candidate);
+            const data = parseQuote(raw);
+            if (data) {
+              text = data;
+              actualMarket = candidate.startsWith("f_") ? "fund" : candidate.startsWith("sh") ? "sh" : "sz";
+              break;
+            }
           }
 
-          const match = text.match(/"(.+)"/);
-          if (!match || !match[1]) {
+          if (!text) {
             results.push(`${code}: 未找到数据`);
             continue;
           }
 
-          const fields = match[1].split(",");
+          const fields = text.split(",");
 
-          if (market === "fund") {
+          if (actualMarket === "fund") {
             // Fund format: name, NAV, accumulated NAV, prev NAV, date, ...
             const [name, nav, accNav, prevNav, date] = fields;
             const change = nav && prevNav ? ((parseFloat(nav) - parseFloat(prevNav)) / parseFloat(prevNav) * 100).toFixed(2) : "N/A";

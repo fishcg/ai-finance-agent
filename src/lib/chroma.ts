@@ -9,10 +9,23 @@ async function getCollectionId(): Promise<string> {
   const res = await fetch(BASE);
   if (!res.ok) throw new Error(`ChromaDB list collections failed: ${res.status}`);
   const cols: { id: string; name: string }[] = await res.json();
-  const col = cols.find((c) => c.name === COLLECTION_NAME);
-  if (!col) throw new Error(`ChromaDB collection "${COLLECTION_NAME}" not found`);
-  cachedCollectionId = col.id;
-  return col.id;
+  let col = cols.find((c) => c.name === COLLECTION_NAME);
+  if (!col) {
+    // 自动创建 collection
+    const createRes = await fetch(BASE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: COLLECTION_NAME }),
+    });
+    if (!createRes.ok) {
+      const err = await createRes.text();
+      throw new Error(`ChromaDB create collection failed: ${createRes.status} ${err}`);
+    }
+    col = await createRes.json();
+    console.log(`[chroma] collection "${COLLECTION_NAME}" created`);
+  }
+  cachedCollectionId = col!.id;
+  return cachedCollectionId;
 }
 
 export async function queryDocuments(embedding: number[], topK = 5) {

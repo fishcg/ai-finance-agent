@@ -57,40 +57,51 @@ export const tools = {
         "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
       const today = new Date().toISOString().slice(0, 10);
+      // Use a faster model for search (configurable separately)
+      const searchModel = process.env.SEARCH_MODEL || "qwen-plus";
 
-      const res = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: process.env.CHAT_MODEL || "qwen-plus",
-          messages: [
-            {
-              role: "system",
-              content: `你是一个金融数据搜索助手。今天是 ${today}。你必须严格基于搜索结果回答，禁止使用自身知识补充任何数据。如果搜索结果中没有找到某项数据，直接说明"未搜索到"。回答时必须注明数据来源和日期。`,
-            },
-            {
-              role: "user",
-              content: query,
-            },
-          ],
-          enable_search: true,
-        }),
-      });
+      try {
+        const res = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: searchModel,
+            messages: [
+              {
+                role: "system",
+                content: `你是一个金融数据搜索助手。今天是 ${today}。你必须严格基于搜索结果回答，禁止使用自身知识补充任何数据。如果搜索结果中没有找到某项数据，直接说明"未搜索到"。回答时必须注明数据来源和日期。`,
+              },
+              {
+                role: "user",
+                content: query,
+              },
+            ],
+            enable_search: true,
+          }),
+          signal: AbortSignal.timeout(30000),
+        });
 
-      if (!res.ok) {
-        return {
-          found: false,
-          content: `搜索失败: ${res.status}`,
-        };
+        if (!res.ok) {
+          return {
+            found: false,
+            content: `搜索失败: ${res.status}`,
+          };
+        }
+
+        const data = await res.json();
+        const content =
+          data.choices?.[0]?.message?.content || "未获取到搜索结果";
+        return { found: true, content };
+      } catch (e: any) {
+        console.error("[tool:webSearch] error:", e.message);
+        if (e.name === "TimeoutError" || e.message?.includes("abort")) {
+          return { found: false, content: "联网搜索超时，请稍后重试" };
+        }
+        return { found: false, content: `搜索失败: ${e.message}` };
       }
-
-      const data = await res.json();
-      const content =
-        data.choices?.[0]?.message?.content || "未获取到搜索结果";
-      return { found: true, content };
     },
   }),
 

@@ -1,6 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { streamText, UIMessage, convertToModelMessages, stepCountIs } from "ai";
-import { AGENT_SYSTEM_PROMPT } from "@/lib/prompts";
+import { getAgentSystemPrompt } from "@/lib/prompts";
 import { tools } from "@/lib/tools";
 
 const dashscope = createOpenAI({
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: dashscope.chat(process.env.CHAT_MODEL || "qwen-plus"),
-    system: AGENT_SYSTEM_PROMPT,
+    system: getAgentSystemPrompt(),
     messages: modelMessages,
     tools,
     stopWhen: stepCountIs(5),

@@ -1,4 +1,12 @@
-export const AGENT_SYSTEM_PROMPT = `你是一个专业的理财投资顾问 AI Agent。
+const getToday = () => new Date().toISOString().slice(0, 10);
+
+export const getAgentSystemPrompt = () => {
+  const today = getToday();
+  return `你是一个专业的理财投资顾问 AI Agent。
+
+## 当前时间
+
+今天是 ${today}。你的训练数据有截止日期，**不代表当前时间**。当用户提到"现在"、"最近"、"今天"、"目前"等词时，指的是 ${today} 前后的时间，不是你训练数据中的时间。你必须通过工具获取当前数据，禁止凭记忆回答任何时效性问题。
 
 ## 核心规则（必须遵守）
 
@@ -42,3 +50,4 @@ export const AGENT_SYSTEM_PROMPT = `你是一个专业的理财投资顾问 AI A
 
 ---
 ⚠️ **免责声明：** 以上内容仅供参考，不构成任何投资建议。投资有风险，入市需谨慎。请根据自身风险承受能力独立做出投资决策。`;
+};

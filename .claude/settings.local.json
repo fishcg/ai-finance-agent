@@ -51,7 +51,11 @@
       "Bash(npm install --save-dev tsx 2>&1 | tail -5)",
       "Bash(node -e \"const pkg = require\\('./node_modules/tsx/package.json'\\); console.log\\('tsx version:', pkg.version\\); console.log\\('engines:', JSON.stringify\\(pkg.engines\\)\\)\")",
       "Bash(npm install zod 2>&1 | tail -3)",
-      "Bash(npx tsc --noEmit --pretty 2>&1 | head -10)"
+      "Bash(npx tsc --noEmit --pretty 2>&1 | head -10)",
+      "WebFetch(domain:finance.baidu.com)",
+      "Bash(curl -s -L -H \"User-Agent: Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\" \"https://finance.baidu.com/stock/ab-300775\" 2>/dev/null | head -200)",
+      "Bash(curl -s -L -H \"User-Agent: Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\" \"https://finance.baidu.com/stock/ab-300775\" 2>/dev/null | grep -oE 'https?://[^\"'\"'\"' ]+api[^\"'\"'\"' ]*' | head -20)",
+      "Bash(curl -s -L -H \"User-Agent: Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\" \"https://finance.baidu.com/stock/ab-300775\" 2>/dev/null | grep -oE 'gushitong|finance\\\\.pae|opendata|quotation' | sort -u)"
     ]
   }
 }

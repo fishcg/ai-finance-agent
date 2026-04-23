@@ -94,6 +94,117 @@ export const tools = {
     },
   }),
 
+  stockQuery: tool({
+    description:
+      "查询股票、基金、ETF 的实时行情数据（价格、涨跌幅、成交量等）。用户提到具体股票代码、基金代码、ETF代码或想查看某只标的的实时行情时调用。",
+    inputSchema: z.object({
+      symbols: z
+        .array(
+          z.object({
+            code: z.string().describe("证券代码，如 300775、600519、001938、510300"),
+            market: z
+              .enum(["sh", "sz", "fund"])
+              .describe("市场：sh=沪市股票/ETF，sz=深市股票/ETF，fund=场外基金"),
+          })
+        )
+        .describe("要查询的证券列表"),
+    }),
+    execute: async ({ symbols }) => {
+      console.log("[tool:stockQuery] symbols:", symbols);
+      const { execFile } = await import("child_process");
+      const { promisify } = await import("util");
+      const execFileAsync = promisify(execFile);
+
+      const results: string[] = [];
+
+      for (const { code, market } of symbols) {
+        try {
+          const sinaCode = market === "fund" ? `f_${code}` : `${market}${code}`;
+          const { stdout } = await execFileAsync("curl", [
+            "-s",
+            "-H", "Referer: https://finance.sina.com.cn",
+            "-H", "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            `https://hq.sinajs.cn/list=${sinaCode}`,
+          ]);
+
+          const decoded = Buffer.from(stdout, "latin1").toString("utf-8");
+          // Try GBK decode via iconv
+          let text = decoded;
+          try {
+            const { exec } = await import("child_process");
+            const iconvResult = await new Promise<string>((resolve) => {
+              const proc = exec("iconv -f GBK -t UTF-8", (err, out) => {
+                resolve(err ? decoded : out);
+              });
+              proc.stdin?.write(Buffer.from(stdout, "latin1"));
+              proc.stdin?.end();
+            });
+            text = iconvResult;
+          } catch {
+            // iconv not available, use raw
+          }
+
+          const match = text.match(/"(.+)"/);
+          if (!match || !match[1]) {
+            results.push(`${code}: 未找到数据`);
+            continue;
+          }
+
+          const fields = match[1].split(",");
+
+          if (market === "fund") {
+            // Fund format: name, NAV, accumulated NAV, prev NAV, date, ...
+            const [name, nav, accNav, prevNav, date] = fields;
+            const change = nav && prevNav ? ((parseFloat(nav) - parseFloat(prevNav)) / parseFloat(prevNav) * 100).toFixed(2) : "N/A";
+            results.push(
+              `${name}(${code})\n` +
+              `  净值: ${nav} | 累计净值: ${accNav}\n` +
+              `  前一日净值: ${prevNav} | 涨跌幅: ${change}%\n` +
+              `  净值日期: ${date}`
+            );
+          } else {
+            // Stock/ETF format: name,open,prevClose,current,high,low,bid,ask,volume,amount,...,date,time
+            const name = fields[0];
+            const open = fields[1];
+            const prevClose = fields[2];
+            const current = fields[3];
+            const high = fields[4];
+            const low = fields[5];
+            const volume = fields[8];
+            const amount = fields[9];
+            const date = fields[30];
+            const time = fields[31];
+
+            const change = current && prevClose
+              ? (parseFloat(current) - parseFloat(prevClose)).toFixed(3)
+              : "N/A";
+            const changePct = current && prevClose
+              ? ((parseFloat(current) - parseFloat(prevClose)) / parseFloat(prevClose) * 100).toFixed(2)
+              : "N/A";
+            const vol = volume ? (parseFloat(volume) / 10000).toFixed(0) : "N/A";
+            const amt = amount ? (parseFloat(amount) / 100000000).toFixed(2) : "N/A";
+
+            results.push(
+              `${name}(${code})\n` +
+              `  最新价: ${current} | 涨跌: ${change} (${changePct}%)\n` +
+              `  今开: ${open} | 昨收: ${prevClose}\n` +
+              `  最高: ${high} | 最低: ${low}\n` +
+              `  成交量: ${vol}万手 | 成交额: ${amt}亿\n` +
+              `  时间: ${date} ${time}`
+            );
+          }
+        } catch (e: any) {
+          console.error(`[tool:stockQuery] error for ${code}:`, e.message);
+          results.push(`${code}: 查询失败 (${e.message})`);
+        }
+      }
+
+      const content = results.join("\n\n");
+      console.log("[tool:stockQuery] results:", content);
+      return { found: true, content };
+    },
+  }),
+
   bilibiliInvestmentDigest: tool({
     description:
       '获取 B 站 UP 主最近发布视频的 AI 总结和字幕内容，用于分析投资建议。用户提到"投资总结"、"视频分析"、"CLS同学"、"B站UP主"等关键词时调用。',

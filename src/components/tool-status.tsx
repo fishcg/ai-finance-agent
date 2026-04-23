@@ -5,6 +5,7 @@ import { useState } from "react";
 const TOOL_LABELS: Record<string, string> = {
   searchKnowledgeBase: "知识库检索",
   webSearch: "联网搜索",
+  stockQuery: "实时行情查询",
   bilibiliInvestmentDigest: "B站视频分析",
 };
 

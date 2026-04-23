@@ -48,13 +48,15 @@ export const tools = {
     description:
       "搜索互联网获取最新资讯、新闻、实时行情数据。适用于用户询问最新市场动态、今日行情、近期新闻等需要实时信息的问题",
     inputSchema: z.object({
-      query: z.string().describe("搜索内容"),
+      query: z.string().describe("搜索内容，应包含具体的标的名称、代码、时间范围等关键词"),
     }),
     execute: async ({ query }) => {
       const apiKey = process.env.DASHSCOPE_API_KEY!;
       const baseUrl =
         process.env.DASHSCOPE_BASE_URL ||
         "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+      const today = new Date().toISOString().slice(0, 10);
 
       const res = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
@@ -63,11 +65,15 @@ export const tools = {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "qwen-plus",
+          model: process.env.CHAT_MODEL || "qwen-plus",
           messages: [
             {
+              role: "system",
+              content: `你是一个金融数据搜索助手。今天是 ${today}。你必须严格基于搜索结果回答，禁止使用自身知识补充任何数据。如果搜索结果中没有找到某项数据，直接说明"未搜索到"。回答时必须注明数据来源和日期。`,
+            },
+            {
               role: "user",
-              content: `请搜索并总结以下内容的最新信息：${query}`,
+              content: query,
             },
           ],
           enable_search: true,

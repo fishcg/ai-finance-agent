@@ -50,7 +50,8 @@
       "Bash(grep -r \"tool-invocation\\\\|tool-result\\\\|ToolInvocationUIPart\\\\|ToolResultPart\" node_modules/@ai-sdk/react/dist/ node_modules/ai/dist/ --include=\"*.d.ts\" -l 2>/dev/null | head -5)",
       "Bash(npm install --save-dev tsx 2>&1 | tail -5)",
       "Bash(node -e \"const pkg = require\\('./node_modules/tsx/package.json'\\); console.log\\('tsx version:', pkg.version\\); console.log\\('engines:', JSON.stringify\\(pkg.engines\\)\\)\")",
-      "Bash(npm install zod 2>&1 | tail -3)"
+      "Bash(npm install zod 2>&1 | tail -3)",
+      "Bash(npx tsc --noEmit --pretty 2>&1 | head -10)"
     ]
   }
 }

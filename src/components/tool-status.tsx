@@ -3,9 +3,9 @@
 import { useState } from "react";
 
 const TOOL_LABELS: Record<string, string> = {
-  searchKnowledgeBase: "搜索知识库",
+  searchKnowledgeBase: "知识库检索",
   webSearch: "联网搜索",
-  bilibiliInvestmentDigest: "获取B站视频内容",
+  bilibiliInvestmentDigest: "B站视频分析",
 };
 
 interface ToolStatusProps {
@@ -24,38 +24,46 @@ export function ToolStatus({ toolName, state, input, output }: ToolStatusProps) 
     state === "input-streaming" || state === "input-available";
   const isDone = state === "output-available";
   const isError = state === "output-error";
-
   const hasOutput = isDone && output?.content;
 
+  const stateStyles = isRunning
+    ? "border-blue-500/30 bg-[var(--blue-dim)] text-[var(--blue)]"
+    : isDone
+      ? "border-emerald-500/30 bg-[var(--green-dim)] text-[var(--green)]"
+      : isError
+        ? "border-red-500/30 bg-[var(--red-dim)] text-[var(--red)]"
+        : "border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-muted)]";
+
   return (
-    <div className="w-fit">
+    <div className="max-w-full">
       <button
         type="button"
         onClick={() => hasOutput && setExpanded(!expanded)}
-        className={`flex items-center gap-2 text-sm text-gray-500 px-3 py-1.5 bg-gray-50 rounded-lg w-fit ${
-          hasOutput ? "cursor-pointer hover:bg-gray-100 transition-colors" : "cursor-default"
+        className={`inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border transition-all duration-200 ${stateStyles} ${
+          hasOutput ? "cursor-pointer hover:brightness-110" : "cursor-default"
         }`}
       >
+        {/* Dot indicator */}
         <span
-          className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
             isRunning
-              ? "bg-blue-400 animate-pulse"
+              ? "bg-[var(--blue)] animate-pulse"
               : isDone
-                ? "bg-green-400"
+                ? "bg-[var(--green)]"
                 : isError
-                  ? "bg-red-400"
-                  : "bg-gray-300"
+                  ? "bg-[var(--red)]"
+                  : "bg-[var(--text-muted)]"
           }`}
         />
-        <span>
-          {isRunning ? `正在${label}` : isDone ? `${label}完成` : label}
-          {query && (
-            <span className="text-gray-400 ml-1">&quot;{query}&quot;</span>
-          )}
+        <span className="font-medium">
+          {isRunning ? `${label}...` : isDone ? `${label}` : label}
         </span>
+        {query && (
+          <span className="opacity-60 truncate max-w-52">{query}</span>
+        )}
         {hasOutput && (
           <svg
-            className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+            className={`w-3 h-3 opacity-40 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -66,7 +74,7 @@ export function ToolStatus({ toolName, state, input, output }: ToolStatusProps) 
         )}
       </button>
       {expanded && hasOutput && (
-        <div className="mt-1.5 px-3 py-2 bg-gray-50 rounded-lg text-xs text-gray-600 max-h-80 overflow-y-auto whitespace-pre-wrap break-words border border-gray-100">
+        <div className="mt-2 px-3.5 py-3 rounded-xl text-xs leading-relaxed text-[var(--text-secondary)] bg-[var(--bg-card)] border border-[var(--border)] max-h-72 overflow-y-auto whitespace-pre-wrap break-words">
           {output.content}
         </div>
       )}

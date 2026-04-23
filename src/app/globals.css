@@ -2,26 +2,55 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-page: #0f1117;
+  --bg-card: #1a1d27;
+  --bg-card-alt: #222633;
+  --bg-input: #1a1d27;
+  --bg-user: linear-gradient(135deg, #6366f1, #8b5cf6);
+  --bg-assistant: #1e2130;
+  --border: #2a2e3d;
+  --border-light: #353a4d;
+  --text-primary: #e8eaf0;
+  --text-secondary: #9399ad;
+  --text-muted: #5c6278;
+  --accent: #818cf8;
+  --accent-dim: rgba(129, 140, 248, 0.15);
+  --accent-hover: #a5b4fc;
+  --gold: #f0c674;
+  --gold-dim: rgba(240, 198, 116, 0.12);
+  --green: #6ee7b7;
+  --green-dim: rgba(110, 231, 183, 0.12);
+  --red: #fca5a5;
+  --red-dim: rgba(252, 165, 165, 0.12);
+  --blue: #93c5fd;
+  --blue-dim: rgba(147, 197, 253, 0.12);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg-page);
+  --color-foreground: var(--text-primary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, var(--accent-dim) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
 }

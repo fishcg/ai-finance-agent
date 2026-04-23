@@ -80,8 +80,9 @@ export const tools = {
               },
             ],
             enable_search: true,
+            stream: true,
           }),
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(60000),
         });
 
         if (!res.ok) {
@@ -91,10 +92,36 @@ export const tools = {
           };
         }
 
-        const data = await res.json();
-        const content =
-          data.choices?.[0]?.message?.content || "未获取到搜索结果";
-        return { found: true, content };
+        // Read SSE stream and collect content
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+        let content = "";
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const data = trimmed.slice(5).trim();
+            if (data === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) content += delta;
+            } catch {
+              // skip malformed chunks
+            }
+          }
+        }
+
+        return { found: true, content: content || "未获取到搜索结果" };
       } catch (e: any) {
         console.error("[tool:webSearch] error:", e.message);
         if (e.name === "TimeoutError" || e.message?.includes("abort")) {

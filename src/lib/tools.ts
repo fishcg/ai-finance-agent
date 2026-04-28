@@ -11,6 +11,7 @@ import {
   getAiSummary,
   getSubtitles,
 } from "@/lib/bilibili";
+import { crossValidateStock } from "@/lib/stock-sources";
 
 export const tools = {
   searchKnowledgeBase: tool({
@@ -134,7 +135,7 @@ export const tools = {
 
   stockQuery: tool({
     description:
-      "查询股票、基金、ETF 的实时行情数据（价格、涨跌幅、成交量等）。用户提到具体股票代码、基金代码、ETF代码或想查看某只标的的实时行情时调用。",
+      "查询股票、基金、ETF 的实时行情数据（价格、涨跌幅、成交量等），内置多数据源交叉验证。用户提到具体股票代码、基金代码、ETF代码或想查看某只标的的实时行情时调用。",
     inputSchema: z.object({
       symbols: z
         .array(
@@ -149,117 +150,54 @@ export const tools = {
     }),
     execute: async ({ symbols }) => {
       console.log("[tool:stockQuery] symbols:", symbols);
-      const { execFile } = await import("child_process");
-      const { promisify } = await import("util");
-      const execFileAsync = promisify(execFile);
-
       const results: string[] = [];
 
-      const fetchSina = async (sinaCode: string) => {
-        const { stdout } = await execFileAsync("curl", [
-          "-s",
-          "-H", "Referer: https://finance.sina.com.cn",
-          "-H", "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          `https://hq.sinajs.cn/list=${sinaCode}`,
-        ]);
-        // GBK decode
-        try {
-          const { exec } = await import("child_process");
-          return await new Promise<string>((resolve) => {
-            const proc = exec("iconv -f GBK -t UTF-8", (err, out) => {
-              resolve(err ? stdout : out);
-            });
-            proc.stdin?.write(Buffer.from(stdout, "latin1"));
-            proc.stdin?.end();
-          });
-        } catch {
-          return stdout;
+      const validations = await Promise.allSettled(
+        symbols.map(({ code, market }) => crossValidateStock(code, market))
+      );
+
+      for (let i = 0; i < validations.length; i++) {
+        const v = validations[i];
+        const { code, market } = symbols[i];
+
+        if (v.status === "rejected") {
+          results.push(`${code}: 查询失败 (${v.reason?.message || v.reason})`);
+          continue;
         }
-      };
 
-      const parseQuote = (text: string) => {
-        const match = text.match(/"(.+)"/);
-        return match?.[1] || "";
-      };
+        const { consensus: d, sources, quality, warnings } = v.value;
+        const qualityLabel = quality === "high" ? "✓高" : quality === "medium" ? "⚠中" : "⚠低";
+        const sourceInfo = sources.map(s => s.success ? `${s.data!.source}(${s.latency}ms)` : `失败`).join(", ");
 
-      for (const { code, market } of symbols) {
-        try {
-          // Build candidate list: try user-specified market first, then fallback
-          const candidates =
-            market === "fund"
-              ? [`f_${code}`, `sh${code}`, `sz${code}`]
-              : market === "sh"
-                ? [`sh${code}`, `sz${code}`, `f_${code}`]
-                : [`sz${code}`, `sh${code}`, `f_${code}`];
-
-          let text = "";
-          let actualMarket = market;
-          for (const candidate of candidates) {
-            const raw = await fetchSina(candidate);
-            const data = parseQuote(raw);
-            if (data) {
-              text = data;
-              actualMarket = candidate.startsWith("f_") ? "fund" : candidate.startsWith("sh") ? "sh" : "sz";
-              break;
-            }
-          }
-
-          if (!text) {
-            results.push(`${code}: 未找到数据`);
-            continue;
-          }
-
-          const fields = text.split(",");
-
-          if (actualMarket === "fund") {
-            // Fund format: name, NAV, accumulated NAV, prev NAV, date, ...
-            const [name, nav, accNav, prevNav, date] = fields;
-            const change = nav && prevNav ? ((parseFloat(nav) - parseFloat(prevNav)) / parseFloat(prevNav) * 100).toFixed(2) : "N/A";
-            results.push(
-              `${name}(${code})\n` +
-              `  净值: ${nav} | 累计净值: ${accNav}\n` +
-              `  前一日净值: ${prevNav} | 涨跌幅: ${change}%\n` +
-              `  净值日期: ${date}`
-            );
-          } else {
-            // Stock/ETF format: name,open,prevClose,current,high,low,bid,ask,volume,amount,...,date,time
-            const name = fields[0];
-            const open = fields[1];
-            const prevClose = fields[2];
-            const current = fields[3];
-            const high = fields[4];
-            const low = fields[5];
-            const volume = fields[8];
-            const amount = fields[9];
-            const date = fields[30];
-            const time = fields[31];
-
-            const change = current && prevClose
-              ? (parseFloat(current) - parseFloat(prevClose)).toFixed(3)
-              : "N/A";
-            const changePct = current && prevClose
-              ? ((parseFloat(current) - parseFloat(prevClose)) / parseFloat(prevClose) * 100).toFixed(2)
-              : "N/A";
-            const vol = volume ? (parseFloat(volume) / 10000).toFixed(0) : "N/A";
-            const amt = amount ? (parseFloat(amount) / 100000000).toFixed(2) : "N/A";
-
-            results.push(
-              `${name}(${code})\n` +
-              `  最新价: ${current} | 涨跌: ${change} (${changePct}%)\n` +
-              `  今开: ${open} | 昨收: ${prevClose}\n` +
-              `  最高: ${high} | 最低: ${low}\n` +
-              `  成交量: ${vol}万手 | 成交额: ${amt}亿\n` +
-              `  时间: ${date} ${time}`
-            );
-          }
-        } catch (e: any) {
-          console.error(`[tool:stockQuery] error for ${code}:`, e.message);
-          results.push(`${code}: 查询失败 (${e.message})`);
+        if (market === "fund") {
+          results.push(
+            `${d.name}(${code}) [数据质量:${qualityLabel}]\n` +
+            `  净值: ${d.current.toFixed(4)} | 前一日: ${d.prevClose.toFixed(4)} | 涨跌幅: ${d.changePct.toFixed(2)}%\n` +
+            `  净值日期: ${d.date}\n` +
+            `  数据源: ${sourceInfo}` +
+            (warnings.length > 0 ? `\n  ⚠️ ${warnings.join("; ")}` : "")
+          );
+        } else {
+          const vol = (d.volume / 10000).toFixed(0);
+          const amt = (d.amount / 100000000).toFixed(2);
+          results.push(
+            `${d.name}(${code}) [数据质量:${qualityLabel}]\n` +
+            `  最新价: ${d.current.toFixed(2)} | 涨跌幅: ${d.changePct.toFixed(2)}%\n` +
+            `  今开: ${d.open.toFixed(2)} | 昨收: ${d.prevClose.toFixed(2)}\n` +
+            `  最高: ${d.high.toFixed(2)} | 最低: ${d.low.toFixed(2)}\n` +
+            `  成交量: ${vol}万手 | 成交额: ${amt}亿\n` +
+            `  时间: ${d.date} ${d.time}\n` +
+            `  数据源: ${sourceInfo}` +
+            (sources.filter(s => s.success).length > 1
+              ? `\n  各源价格: ${sources.filter(s => s.success).map(s => `${s.data!.source}=${s.data!.current.toFixed(2)}`).join(", ")}`
+              : "") +
+            (warnings.length > 0 ? `\n  ⚠️ ${warnings.join("; ")}` : "")
+          );
         }
       }
 
       const content = results.join("\n\n");
-      console.log("[tool:stockQuery] results:", content);
+      console.log("[tool:stockQuery] done, length:", content.length);
       return { found: true, content };
     },
   }),

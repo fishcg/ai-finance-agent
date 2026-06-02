@@ -143,12 +143,13 @@ export const tools = {
             code: z
               .string()
               .describe(
-                "证券代码：A股/ETF 用纯数字（600519、300775、510300）；港股 5 位数字（00700、09988）；美股 ticker（AAPL、TSLA）；场外基金 6 位数字（001938）"
+                "证券代码：A股/ETF 用纯数字（600519、000895、510300），可带前缀（sh600519/sz000895）；港股 5 位数字（00700）；美股 ticker（AAPL）；场外基金 6 位数字（001938）"
               ),
             market: z
               .enum(["sh", "sz", "hk", "us", "fund"])
+              .optional()
               .describe(
-                "市场：sh=沪市股票/ETF，sz=深市股票/ETF，hk=港股，us=美股，fund=场外基金"
+                "市场（可选）：sh=沪市股票/ETF，sz=深市股票/ETF，hk=港股，us=美股，fund=场外基金。A 股可省略，工具会按代码前缀自动判断；港股/美股/基金建议显式传"
               ),
           })
         )

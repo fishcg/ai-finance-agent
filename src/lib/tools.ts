@@ -11,7 +11,7 @@ import {
   getAiSummary,
   getSubtitles,
 } from "@/lib/bilibili";
-import { crossValidateStock } from "@/lib/stock-sources";
+import { fetchQuote } from "@/lib/stock-sources";
 
 export const tools = {
   searchKnowledgeBase: tool({
@@ -135,15 +135,21 @@ export const tools = {
 
   stockQuery: tool({
     description:
-      "查询股票、基金、ETF 的实时行情数据（价格、涨跌幅、成交量等），内置多数据源交叉验证。用户提到具体股票代码、基金代码、ETF代码或想查看某只标的的实时行情时调用。",
+      "查询股票（A股/港股/美股）、基金、ETF 的实时行情数据（价格、涨跌幅、成交量等）。用户提到具体证券代码或想查看某只标的的实时行情时调用。",
     inputSchema: z.object({
       symbols: z
         .array(
           z.object({
-            code: z.string().describe("证券代码，如 300775、600519、001938、510300"),
+            code: z
+              .string()
+              .describe(
+                "证券代码：A股/ETF 用纯数字（600519、300775、510300）；港股 5 位数字（00700、09988）；美股 ticker（AAPL、TSLA）；场外基金 6 位数字（001938）"
+              ),
             market: z
-              .enum(["sh", "sz", "fund"])
-              .describe("市场：sh=沪市股票/ETF，sz=深市股票/ETF，fund=场外基金"),
+              .enum(["sh", "sz", "hk", "us", "fund"])
+              .describe(
+                "市场：sh=沪市股票/ETF，sz=深市股票/ETF，hk=港股，us=美股，fund=场外基金"
+              ),
           })
         )
         .describe("要查询的证券列表"),
@@ -152,46 +158,44 @@ export const tools = {
       console.log("[tool:stockQuery] symbols:", symbols);
       const results: string[] = [];
 
-      const validations = await Promise.allSettled(
-        symbols.map(({ code, market }) => crossValidateStock(code, market))
+      const settled = await Promise.allSettled(
+        symbols.map(({ code, market }) => fetchQuote(code, market))
       );
 
-      for (let i = 0; i < validations.length; i++) {
-        const v = validations[i];
-        const { code, market } = symbols[i];
+      for (let i = 0; i < settled.length; i++) {
+        const r = settled[i];
+        const { code } = symbols[i];
 
-        if (v.status === "rejected") {
-          results.push(`${code}: 查询失败 (${v.reason?.message || v.reason})`);
+        if (r.status === "rejected") {
+          const reason = r.reason instanceof Error ? r.reason.message : String(r.reason);
+          results.push(`${code}: 查询失败 (${reason})`);
           continue;
         }
 
-        const { consensus: d, sources, quality, warnings } = v.value;
-        const qualityLabel = quality === "high" ? "✓高" : quality === "medium" ? "⚠中" : "⚠低";
-        const sourceInfo = sources.map(s => s.success ? `${s.data!.source}(${s.latency}ms)` : `失败`).join(", ");
-
-        if (market === "fund") {
+        const q = r.value;
+        if (q.kind === "fund") {
           results.push(
-            `${d.name}(${code}) [数据质量:${qualityLabel}]\n` +
-            `  净值: ${d.current.toFixed(4)} | 前一日: ${d.prevClose.toFixed(4)} | 涨跌幅: ${d.changePct.toFixed(2)}%\n` +
-            `  净值日期: ${d.date}\n` +
-            `  数据源: ${sourceInfo}` +
-            (warnings.length > 0 ? `\n  ⚠️ ${warnings.join("; ")}` : "")
+            `${q.name}(${q.code}) [场外基金]\n` +
+              `  单位净值: ${q.nav.toFixed(4)} | 累计净值: ${q.accNav.toFixed(4)}\n` +
+              `  净值日期: ${q.navDate}`
           );
         } else {
-          const vol = (d.volume / 10000).toFixed(0);
-          const amt = (d.amount / 100000000).toFixed(2);
+          const currency = q.currency || "";
+          const vol = q.volume > 10000 ? `${(q.volume / 10000).toFixed(0)}万手` : `${q.volume}手`;
+          const amt = q.amount > 100000000
+            ? `${(q.amount / 100000000).toFixed(2)}亿`
+            : q.amount > 10000
+            ? `${(q.amount / 10000).toFixed(2)}万`
+            : `${q.amount}`;
+          const marketLabel =
+            q.market === "hk" ? "港股" : q.market === "us" ? "美股" : q.market === "sh" ? "沪市" : "深市";
           results.push(
-            `${d.name}(${code}) [数据质量:${qualityLabel}]\n` +
-            `  最新价: ${d.current.toFixed(2)} | 涨跌幅: ${d.changePct.toFixed(2)}%\n` +
-            `  今开: ${d.open.toFixed(2)} | 昨收: ${d.prevClose.toFixed(2)}\n` +
-            `  最高: ${d.high.toFixed(2)} | 最低: ${d.low.toFixed(2)}\n` +
-            `  成交量: ${vol}万手 | 成交额: ${amt}亿\n` +
-            `  时间: ${d.date} ${d.time}\n` +
-            `  数据源: ${sourceInfo}` +
-            (sources.filter(s => s.success).length > 1
-              ? `\n  各源价格: ${sources.filter(s => s.success).map(s => `${s.data!.source}=${s.data!.current.toFixed(2)}`).join(", ")}`
-              : "") +
-            (warnings.length > 0 ? `\n  ⚠️ ${warnings.join("; ")}` : "")
+            `${q.name}(${q.code}) [${marketLabel}${currency ? ` ${currency}` : ""}]\n` +
+              `  最新价: ${q.current.toFixed(2)} | 涨跌幅: ${q.changePct.toFixed(2)}%\n` +
+              `  今开: ${q.open.toFixed(2)} | 昨收: ${q.prevClose.toFixed(2)}\n` +
+              `  最高: ${q.high.toFixed(2)} | 最低: ${q.low.toFixed(2)}\n` +
+              `  成交量: ${vol} | 成交额: ${amt}\n` +
+              `  时间: ${q.date} ${q.time}`
           );
         }
       }

@@ -11,7 +11,7 @@ import {
   getAiSummary,
   getSubtitles,
 } from "@/lib/bilibili";
-import { fetchQuote } from "@/lib/stock-sources";
+import { fetchQuote, searchSymbols } from "@/lib/stock-sources";
 
 export const tools = {
   searchKnowledgeBase: tool({
@@ -204,6 +204,42 @@ export const tools = {
       const content = results.join("\n\n");
       console.log("[tool:stockQuery] done, length:", content.length);
       return { found: true, content };
+    },
+  }),
+
+  searchByKeyword: tool({
+    description:
+      "按关键词模糊搜索股票/基金/ETF/指数的代码与名称。适合用户问主题/板块/赛道相关标的（例如「锡」「光伏」「半导体」「红利」）但没给具体代码时——先用此工具拿到候选代码列表，再用 stockQuery 取实时行情。也可用名字/拼音/代码片段反查（「茅台」「pingan」「600」）。",
+    inputSchema: z.object({
+      keyword: z.string().describe("关键词：可以是名称、拼音、代码片段、主题词"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(50)
+        .optional()
+        .default(20)
+        .describe("返回前 N 条，默认 20"),
+    }),
+    execute: async ({ keyword, limit }) => {
+      console.log("[tool:searchByKeyword] keyword:", keyword, "limit:", limit);
+      try {
+        const hits = await searchSymbols(keyword, limit);
+        if (!hits.length) {
+          return { found: false, content: `未搜到与「${keyword}」相关的标的` };
+        }
+        const lines = hits.map((h, i) => {
+          const market = h.market.toLowerCase();
+          const cat = h.category || h.type;
+          return `${i + 1}. ${h.code} ${h.name} [${market}/${cat}]`;
+        });
+        const content = `关键词「${keyword}」共找到 ${hits.length} 条候选：\n${lines.join("\n")}`;
+        console.log("[tool:searchByKeyword] done, hits:", hits.length);
+        return { found: true, content };
+      } catch (e: any) {
+        console.error("[tool:searchByKeyword] error:", e.message);
+        return { found: false, content: `搜索失败: ${e.message}` };
+      }
     },
   }),
 

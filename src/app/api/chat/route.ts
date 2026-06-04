@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     system: getAgentSystemPrompt(),
     messages: modelMessages,
     tools,
-    stopWhen: stepCountIs(5),
+    stopWhen: stepCountIs(10),
     onStepFinish({ finishReason, text, toolCalls, toolResults, response }) {
       console.log("[agent] step finish", {
         finishReason,

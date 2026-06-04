@@ -188,6 +188,25 @@ async function fetchBySearch(rawCode: string): Promise<Quote> {
   throw new Error(`代码 ${rawCode} 命中未知市场 ${hit.market}`);
 }
 
+export interface SearchHit {
+  code: string;
+  name: string;
+  market: string;
+  type: string;
+  category?: string;
+}
+
+export async function searchSymbols(keyword: string, limit = 20): Promise<SearchHit[]> {
+  const results = await sdk.search(keyword);
+  return results.slice(0, limit).map((r) => ({
+    code: r.code,
+    name: r.name,
+    market: r.market,
+    type: r.type,
+    category: r.category,
+  }));
+}
+
 export async function fetchQuote(code: string, market?: Market): Promise<Quote> {
   if (market === "fund") return fetchFund(stripPrefix(code));
   if (market === "hk") return fetchHK(code);
